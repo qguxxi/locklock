@@ -1,11 +1,17 @@
 package com.locklock.applock.presentation.pin
 
 import android.app.Activity
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,28 +63,44 @@ import com.locklock.applock.R
 import kotlinx.coroutines.delay
 
 private val PinActiveGreen = Color(0xFF2AD200)
+private val PinErrorRed = Color(0xFFFF4D4D)
 private val PinInactiveWhite = Color(0xFFFFFFFF)
 private val PinScreenBlack = Color(0xFF000000)
 private const val PIN_LENGTH = 6
 
+private enum class PinSetupStage {
+    CREATE,
+    CONFIRM
+}
+
 /**
- * Màn hình "Thiết lập mã pin" triển khai từ thiết kế Figma (node-id: 12:2):
+ * Màn hình "Thiết lập mã pin" & "Xác nhận mã pin" triển khai từ thiết kế Figma (node-id: 12:2):
  * - Nền đen tuyệt đối (#000000)
- * - Tiêu đề "Thiết lập mã pin" (40sp, Bold, #FFFFFF)
+ * - Tiêu đề "Thiết lập mã pin" -> sau khi nhập đủ 6 số sẽ chuyển sang "Xác nhận mã pin" (40sp, Bold, #FFFFFF)
  * - 6 biểu tượng linh vật LockLock (34dp):
  *   + Khi chưa nhập: màu trắng (#FFFFFF) và nhắm mắt
- *   + Khi vừa nhập: chuyển xanh lá (#2AD200), mở mắt ra rồi ngay lập tức nhắm mắt lại
+ *   + Khi vừa nhập từng số: chuyển xanh lá (#2AD200), mở mắt tròn ra rồi ngay lập tức nhắm mắt lại
+ *   + Khi nhập xong cả 6 số: các icon phóng to ra một chút, rung nhẹ rồi chuyển sang màn hình "Xác nhận mã pin"
  * - Linh vật LockLock lấp ló bên mép phải (node 12:46): khi nhập cũng mở mắt ra rồi lập tức nhắm mắt lại
  * - Bàn phím số cỡ chữ gấp đôi (48sp)
  */
 @Composable
 fun PinEntryScreen(
     title: String = "Thiết lập mã pin",
+    confirmTitle: String = "Xác nhận mã pin",
     initialPin: String = "",
     onPinComplete: (String) -> Unit = {}
 ) {
+    var stage by remember { mutableStateOf(PinSetupStage.CREATE) }
+    var firstPin by remember { mutableStateOf("") }
     var enteredPin by remember { mutableStateOf(initialPin.take(PIN_LENGTH)) }
+    var isErrorMismatch by remember { mutableStateOf(false) }
     var inputBlinkTick by remember { mutableIntStateOf(0) }
+
+    // Hiệu ứng khi nhập xong 6 số: phóng to ra 1 chút rồi rung nhẹ
+    val completionScale = remember { Animatable(1f) }
+    val completionShakeX = remember { Animatable(0f) }
+
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
 
@@ -106,10 +128,72 @@ fun PinEntryScreen(
         }
     }
 
-    LaunchedEffect(enteredPin) {
+    LaunchedEffect(enteredPin, stage) {
         if (enteredPin.length == PIN_LENGTH) {
-            delay(320L)
-            onPinComplete(enteredPin)
+            // Chờ hiệu ứng mở-nhắm mắt của ký tự cuối hoàn tất
+            delay(240L)
+
+            if (stage == PinSetupStage.CREATE) {
+                // Bước 1: Phóng to icon ra 1 chút
+                completionScale.animateTo(
+                    targetValue = 1.24f,
+                    animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                )
+                // Bước 2: Rung nhẹ kèm phản hồi xúc giác
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                val shakeOffsets = listOf(-6f, 6f, -4.5f, 4.5f, -2.5f, 2.5f, 0f)
+                for (offset in shakeOffsets) {
+                    completionShakeX.animateTo(
+                        targetValue = offset,
+                        animationSpec = tween(durationMillis = 42)
+                    )
+                }
+                // Thu về kích thước chuẩn trước khi chuyển sang màn hình nhập lại mã PIN
+                completionScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
+                )
+
+                // Bước 3: Chuyển sang màn hình "Nhập lại mã pin"
+                firstPin = enteredPin
+                enteredPin = ""
+                stage = PinSetupStage.CONFIRM
+            } else {
+                if (enteredPin == firstPin) {
+                    // Nhập lại khớp mã PIN: phóng to 1 chút, rung nhẹ rồi hoàn tất
+                    completionScale.animateTo(
+                        targetValue = 1.24f,
+                        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                    )
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val shakeOffsets = listOf(-6f, 6f, -4.5f, 4.5f, -2.5f, 2.5f, 0f)
+                    for (offset in shakeOffsets) {
+                        completionShakeX.animateTo(
+                            targetValue = offset,
+                            animationSpec = tween(durationMillis = 42)
+                        )
+                    }
+                    completionScale.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing)
+                    )
+                    onPinComplete(enteredPin)
+                } else {
+                    // Nhập lại chưa khớp: báo đỏ + rung nhẹ rồi cho nhập lại
+                    isErrorMismatch = true
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val errorOffsets = listOf(-10f, 10f, -8f, 8f, -4f, 4f, 0f)
+                    for (offset in errorOffsets) {
+                        completionShakeX.animateTo(
+                            targetValue = offset,
+                            animationSpec = tween(durationMillis = 45)
+                        )
+                    }
+                    delay(200L)
+                    isErrorMismatch = false
+                    enteredPin = ""
+                }
+            }
         }
     }
 
@@ -125,26 +209,39 @@ fun PinEntryScreen(
         val peekingMascotTop = screenHeight * 0.365f
         val keypadTop = screenHeight * (430f / 800f)
 
-        // 1. Tiêu đề "Thiết lập mã pin"
-        BasicText(
-            text = title,
-            style = TextStyle(
-                fontFamily = FontFamily.SansSerif,
-                fontWeight = FontWeight.Bold,
-                fontSize = 40.sp,
-                lineHeight = 48.sp,
-                color = PinInactiveWhite,
-                textAlign = TextAlign.Center
-            ),
+        // 1. Tiêu đề chuyển mượt từ "Thiết lập mã pin" sang "Nhập lại mã pin"
+        val currentTitle = if (stage == PinSetupStage.CREATE) title else confirmTitle
+        AnimatedContent(
+            targetState = currentTitle,
+            transitionSpec = {
+                (slideInHorizontally { width -> width / 3 } + fadeIn(tween(220)))
+                    .togetherWith(slideOutHorizontally { width -> -width / 3 } + fadeOut(tween(180)))
+            },
+            label = "PinStageTitleTransition",
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = titleTop)
-        )
+        ) { targetTitle ->
+            BasicText(
+                text = targetTitle,
+                style = TextStyle(
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 40.sp,
+                    lineHeight = 48.sp,
+                    color = PinInactiveWhite,
+                    textAlign = TextAlign.Center
+                )
+            )
+        }
 
-        // 2. Cụm 6 chỉ báo mã PIN hình linh vật LockLock (nhập -> mở mắt ra rồi lập tức nhắm mắt lại)
+        // 2. Cụm 6 chỉ báo mã PIN hình linh vật LockLock
         PinMascotIndicatorsRow(
             enteredCount = enteredPin.length,
             pinLength = PIN_LENGTH,
+            isError = isErrorMismatch,
+            completionScale = completionScale.value,
+            completionShakeX = completionShakeX.value,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = indicatorsTop)
@@ -215,14 +312,14 @@ fun PinEntryScreen(
         // 4. Bàn phím số (cỡ số 48sp = gấp đôi 24sp)
         PinNumericKeypad(
             onDigitClick = { digit ->
-                if (enteredPin.length < PIN_LENGTH) {
+                if (enteredPin.length < PIN_LENGTH && !isErrorMismatch) {
                     haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                     enteredPin += digit
                     inputBlinkTick += 1
                 }
             },
             onDeleteClick = {
-                if (enteredPin.isNotEmpty()) {
+                if (enteredPin.isNotEmpty() && enteredPin.length < PIN_LENGTH && !isErrorMismatch) {
                     haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
                     enteredPin = enteredPin.dropLast(1)
                 }
@@ -238,6 +335,9 @@ fun PinEntryScreen(
 private fun PinMascotIndicatorsRow(
     enteredCount: Int,
     pinLength: Int,
+    isError: Boolean,
+    completionScale: Float,
+    completionShakeX: Float,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -248,11 +348,15 @@ private fun PinMascotIndicatorsRow(
         repeat(pinLength) { index ->
             val isFilled = index < enteredCount
             val tintColor by animateColorAsState(
-                targetValue = if (isFilled) PinActiveGreen else PinInactiveWhite,
+                targetValue = when {
+                    isError -> PinErrorRed
+                    isFilled -> PinActiveGreen
+                    else -> PinInactiveWhite
+                },
                 animationSpec = tween(durationMillis = 160),
                 label = "PinMascotTint"
             )
-            val scale by animateFloatAsState(
+            val baseScale by animateFloatAsState(
                 targetValue = if (isFilled) 1.08f else 1.0f,
                 animationSpec = tween(durationMillis = 140),
                 label = "PinMascotScale"
@@ -283,8 +387,11 @@ private fun PinMascotIndicatorsRow(
                 modifier = Modifier
                     .size(34.dp)
                     .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
+                        val totalScale = baseScale * completionScale
+                        scaleX = totalScale
+                        scaleY = totalScale
+                        translationX = completionShakeX.dp.toPx()
+                        rotationZ = completionShakeX * 1.4f
                     }
                     .drawWithContent {
                         drawContent()
