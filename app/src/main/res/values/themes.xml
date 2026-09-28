@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chủ đề chính của ứng dụng sau khi thoát SplashScreen -->
+    <style name="Theme.LockLock" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:statusBarColor">#F8FAFC</item>
+        <item name="android:navigationBarColor">#F8FAFC</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- Chủ đề SplashScreen chuẩn AndroidX Core SplashScreen API -->
+    <style name="Theme.LockLock.Starting" parent="Theme.SplashScreen">
+        <!-- Màu nền Soft Porcelain (#F8FAFC) đồng bộ với Serene Vault -->
+        <item name="windowSplashScreenBackground">#F8FAFC</item>
+        <!-- Biểu tượng chính giữa màn hình chờ -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <!-- Thời lượng hoạt ảnh biểu tượng (ms) -->
+        <item name="windowSplashScreenAnimationDuration">300</item>
+        <!-- Chủ đề tự động chuyển sang sau khi kết thúc SplashScreen -->
+        <item name="postSplashScreenTheme">@style/Theme.LockLock</item>
+    </style>
+</resources>

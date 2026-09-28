@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LockLock</string>
+    <string name="alias_calculator_name">Calculator</string>
+    <string name="alias_weather_name">Weather</string>
+    <string name="accessibility_service_label">LockLock App Protection</string>
+    <string name="accessibility_service_description">Giúp LockLock nhận diện tức thì khi một ứng dụng được mở để hiển thị màn hình khóa bảo vệ quyền riêng tư của bạn. LockLock cam kết không đọc hay thu thập nội dung màn hình.</string>
+</resources>
